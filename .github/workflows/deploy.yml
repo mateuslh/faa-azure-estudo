@@ -20,6 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       acr_login_server: ${{ steps.tf_output.outputs.acr_login_server }}
+      acr_name: ${{ steps.tf_output.outputs.acr_name }}
       app_url: ${{ steps.tf_output.outputs.app_url }}
 
     defaults:
@@ -48,6 +49,7 @@ jobs:
         id: tf_output
         run: |
           echo "acr_login_server=$(terraform output -raw acr_login_server)" >> "$GITHUB_OUTPUT"
+          echo "acr_name=$(terraform output -raw acr_name)" >> "$GITHUB_OUTPUT"
           echo "app_url=$(terraform output -raw app_url)" >> "$GITHUB_OUTPUT"
 
   migrate:
@@ -76,7 +78,7 @@ jobs:
   build-and-deploy:
     name: Build & Deploy
     runs-on: ubuntu-latest
-    needs: migrate
+    needs: [terraform, migrate]
 
     steps:
       - uses: actions/checkout@v4
@@ -88,9 +90,8 @@ jobs:
 
       - name: Build e push imagem no ACR
         run: |
-          ACR="${{ needs.terraform.outputs.acr_login_server }}"
           az acr build \
-            --registry "$ACR" \
+            --registry "${{ needs.terraform.outputs.acr_name }}" \
             --image pessoas-api:${{ github.sha }} \
             --image pessoas-api:latest \
             .
