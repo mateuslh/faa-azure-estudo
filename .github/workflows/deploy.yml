@@ -1,0 +1,97 @@
+name: Deploy — Azure Function
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  TF_VERSION: '1.8.5'
+  PYTHON_VERSION: '3.11'
+  ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+  ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+  ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+  ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+
+jobs:
+  terraform:
+    name: Terraform
+    runs-on: ubuntu-latest
+    outputs:
+      function_app_name: ${{ steps.tf_output.outputs.function_app_name }}
+
+    defaults:
+      run:
+        working-directory: terraform
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform Apply
+        run: |
+          terraform apply -auto-approve \
+            -var="subscription_id=${{ secrets.AZURE_SUBSCRIPTION_ID }}" \
+            -var="db_host=${{ secrets.DB_HOST }}" \
+            -var="db_password=${{ secrets.DB_PASSWORD }}"
+
+      - name: Captura outputs
+        id: tf_output
+        run: |
+          echo "function_app_name=$(terraform output -raw function_app_name)" >> "$GITHUB_OUTPUT"
+
+  migrate:
+    name: Migration
+    runs-on: ubuntu-latest
+    needs: terraform
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Instala dependências
+        run: pip install psycopg2-binary
+
+      - name: Roda migrations
+        env:
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_NAME: adp_test
+          DB_USER: pgadmin
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+        run: python migrate.py
+
+  deploy:
+    name: Deploy Function
+    runs-on: ubuntu-latest
+    needs: migrate
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Login Azure
+        uses: azure/login@v2
+        with:
+          creds: '{"clientId":"${{ secrets.AZURE_CLIENT_ID }}","clientSecret":"${{ secrets.AZURE_CLIENT_SECRET }}","subscriptionId":"${{ secrets.AZURE_SUBSCRIPTION_ID }}","tenantId":"${{ secrets.AZURE_TENANT_ID }}"}'
+
+      - name: Deploy
+        uses: Azure/functions-action@v1
+        with:
+          app-name: func-faa-azure-estudo
+          package: .
+          scm-do-build-during-deployment: true
+          enable-oryx-build: true

@@ -1,0 +1,9 @@
+.python_packages/
+__pycache__/
+*.pyc
+.env
+local.settings.json
+.venv/
+terraform/.terraform/
+terraform/terraform.tfvars
+terraform/*.tfplan
