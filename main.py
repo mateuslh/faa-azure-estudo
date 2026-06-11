@@ -1,5 +1,6 @@
 import logging
 import os
+from datetime import datetime
 
 import psycopg2
 import psycopg2.extras
@@ -29,6 +30,10 @@ def get_conn():
     )
 
 
+def serialize(row: dict) -> dict:
+    return {k: v.isoformat() if isinstance(v, datetime) else v for k, v in row.items()}
+
+
 class Pessoa(BaseModel):
     nome: str
     idade: int
@@ -41,7 +46,7 @@ def listar_pessoas():
         with get_conn() as conn:
             with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
                 cur.execute("SELECT * FROM pessoas ORDER BY id")
-                rows = [dict(r) for r in cur.fetchall()]
+                rows = [serialize(dict(r)) for r in cur.fetchall()]
         return JSONResponse(rows)
     except Exception as e:
         logging.exception("Erro ao listar pessoas")
@@ -61,7 +66,7 @@ def criar_pessoa(pessoa: Pessoa):
                     """,
                     (pessoa.nome, pessoa.idade, pessoa.tecnologia_que_o_gledson_ama),
                 )
-                row = dict(cur.fetchone())
+                row = serialize(dict(cur.fetchone()))
             conn.commit()
         return JSONResponse(row, status_code=201)
     except Exception as e:
@@ -87,7 +92,7 @@ def atualizar_pessoa(pessoa_id: int, pessoa: Pessoa):
             conn.commit()
         if not row:
             raise HTTPException(status_code=404, detail="Pessoa não encontrada")
-        return JSONResponse(dict(row))
+        return JSONResponse(serialize(dict(row)))
     except HTTPException:
         raise
     except Exception as e:
