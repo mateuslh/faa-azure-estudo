@@ -1,14 +1,21 @@
-import json
 import logging
 import os
 
 import psycopg2
 import psycopg2.extras
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 def get_conn():
@@ -59,4 +66,47 @@ def criar_pessoa(pessoa: Pessoa):
         return JSONResponse(row, status_code=201)
     except Exception as e:
         logging.exception("Erro ao criar pessoa")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.put("/pessoas/{pessoa_id}")
+def atualizar_pessoa(pessoa_id: int, pessoa: Pessoa):
+    try:
+        with get_conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute(
+                    """
+                    UPDATE pessoas
+                    SET nome = %s, idade = %s, tecnologia_que_o_gledson_ama = %s
+                    WHERE id = %s
+                    RETURNING *
+                    """,
+                    (pessoa.nome, pessoa.idade, pessoa.tecnologia_que_o_gledson_ama, pessoa_id),
+                )
+                row = cur.fetchone()
+            conn.commit()
+        if not row:
+            raise HTTPException(status_code=404, detail="Pessoa não encontrada")
+        return JSONResponse(dict(row))
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.exception("Erro ao atualizar pessoa")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/pessoas/{pessoa_id}", status_code=204)
+def deletar_pessoa(pessoa_id: int):
+    try:
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute("DELETE FROM pessoas WHERE id = %s RETURNING id", (pessoa_id,))
+                deleted = cur.fetchone()
+            conn.commit()
+        if not deleted:
+            raise HTTPException(status_code=404, detail="Pessoa não encontrada")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.exception("Erro ao deletar pessoa")
         raise HTTPException(status_code=500, detail=str(e))
