@@ -1,0 +1,62 @@
+import json
+import logging
+import os
+
+import psycopg2
+import psycopg2.extras
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel
+
+app = FastAPI()
+
+
+def get_conn():
+    return psycopg2.connect(
+        host=os.environ["DB_HOST"],
+        port=os.environ.get("DB_PORT", "5432"),
+        dbname=os.environ["DB_NAME"],
+        user=os.environ["DB_USER"],
+        password=os.environ["DB_PASSWORD"],
+        sslmode="require",
+    )
+
+
+class Pessoa(BaseModel):
+    nome: str
+    idade: int
+    tecnologia_que_o_gledson_ama: str
+
+
+@app.get("/pessoas")
+def listar_pessoas():
+    try:
+        with get_conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute("SELECT * FROM pessoas ORDER BY id")
+                rows = [dict(r) for r in cur.fetchall()]
+        return JSONResponse(rows)
+    except Exception as e:
+        logging.exception("Erro ao listar pessoas")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/pessoas", status_code=201)
+def criar_pessoa(pessoa: Pessoa):
+    try:
+        with get_conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute(
+                    """
+                    INSERT INTO pessoas (nome, idade, tecnologia_que_o_gledson_ama)
+                    VALUES (%s, %s, %s)
+                    RETURNING *
+                    """,
+                    (pessoa.nome, pessoa.idade, pessoa.tecnologia_que_o_gledson_ama),
+                )
+                row = dict(cur.fetchone())
+            conn.commit()
+        return JSONResponse(row, status_code=201)
+    except Exception as e:
+        logging.exception("Erro ao criar pessoa")
+        raise HTTPException(status_code=500, detail=str(e))

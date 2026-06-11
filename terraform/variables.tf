@@ -9,7 +9,7 @@ variable "resource_group_name" {
 
 variable "location" {
   type    = string
-  default = "eastus"
+  default = "brazilsouth"
 }
 
 variable "db_host" {
