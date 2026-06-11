@@ -92,10 +92,4 @@ resource "azurerm_container_app" "main" {
     }
   }
 
-  lifecycle {
-    ignore_changes = [
-      # sufixo gerado pela Azure no nome da revisão
-      latest_revision_name,
-    ]
-  }
 }
