@@ -56,7 +56,8 @@ resource "azurerm_container_app" "main" {
   template {
     container {
       name   = "pessoas-api"
-      image  = "${azurerm_container_registry.main.login_server}/pessoas-api:latest"
+      # Placeholder — o step de deploy da pipeline atualiza para a imagem real
+      image  = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest"
       cpu    = 0.25
       memory = "0.5Gi"
 
@@ -90,5 +91,10 @@ resource "azurerm_container_app" "main" {
       percentage      = 100
       latest_revision = true
     }
+  }
+
+  # O step de deploy atualiza a imagem via az containerapp update — ignorar para não reverter
+  lifecycle {
+    ignore_changes = [template]
   }
 }
