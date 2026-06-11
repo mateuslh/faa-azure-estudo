@@ -30,3 +30,8 @@ variable "db_password" {
   type      = string
   sensitive = true
 }
+
+variable "app_image" {
+  type    = string
+  default = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest"
+}
